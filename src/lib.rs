@@ -1,5 +1,6 @@
 use std::sync::Mutex;
 
+use thiserror::Error;
 use v8::{Context, Global, OwnedIsolate};
 
 fn create_origin<'s>(
@@ -21,6 +22,20 @@ fn module_callback<'s>(
 }
 
 static INITIALIZED: Mutex<bool> = Mutex::new(false);
+
+/// Exceptions related to this crate
+#[derive(Error, Debug)]
+pub enum Error {
+    /// Error with exception thrown from V8
+    #[error("{0}")]
+    V8ExceptionThrown(String),
+    /// Unknown error
+    #[error("unknown error")]
+    UnknownError,
+}
+
+/// local shortcode of Result
+type Result<T> = std::result::Result<T, Error>;
 
 /// Math to Svg Converter
 pub struct Converter {
@@ -60,7 +75,7 @@ impl Converter {
                 let scope = &mut v8::ContextScope::new(handle_scope, context);
 
                 // Load js file
-                let code = include_str!("../js/out/index.js");
+                let code = include_str!("../js/out/index.mjs");
                 let source = v8::String::new(scope, code).unwrap();
                 let origin = create_origin(scope, "index.js", true);
                 let source = v8::script_compiler::Source::new(source, Some(&origin));
@@ -88,16 +103,32 @@ impl Converter {
     }
 
     /// Convert a math string to Svg
-    pub fn convert_to_svg(&mut self, latex: impl AsRef<str>) -> String {
+    pub fn convert_to_svg(&mut self, latex: impl AsRef<str>) -> Result<String> {
         let handle_scope = &mut v8::HandleScope::new(&mut self.isolate);
         let context = v8::Local::new(handle_scope, self.context.clone());
         let scope = &mut v8::ContextScope::new(handle_scope, context);
+        let scope = &mut v8::TryCatch::new(scope);
 
         let key = v8::String::new(scope, FUNC_ID).unwrap().into();
         let obj = context.global(scope).get(scope, key).unwrap();
         let func = v8::Local::<v8::Function>::try_from(obj).unwrap();
         let args = [v8::String::new(scope, latex.as_ref()).unwrap().into()];
-        let result = func.call(scope, obj, &args).unwrap();
-        result.to_rust_string_lossy(scope)
+        if let Some(result) = func.call(scope, obj, &args) {
+            Ok(result.to_rust_string_lossy(scope))
+        } else {
+            let message = 'msg: {
+                let key = v8::String::new(scope, "message").unwrap();
+                let Some(exception) = scope.exception() else {
+                    return Err(Error::UnknownError);
+                };
+                let exception = exception.to_object(scope).unwrap();
+                let Some(message) = exception.get(scope, key.into()) else {
+                    // If the error object does not contain a `message` member, it will be directly converted to a string.
+                    break 'msg exception.to_rust_string_lossy(scope);
+                };
+                message.to_rust_string_lossy(scope)
+            };
+            Err(Error::V8ExceptionThrown(message))
+        }
     }
 }

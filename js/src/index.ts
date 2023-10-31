@@ -29,6 +29,6 @@ export default function(
 		}
 		return svgTag;
 	} catch (error: any) {
-		throw new Error(`LaTeX error: ${error.message}`);
+		throw new Error(`${error.message}`);
 	}
 }

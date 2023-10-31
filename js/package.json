@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "prepare": "bun build --outfile=out/index.js --minify --target=browser src/index.ts",
+    "prepare": "bun build --outfile=out/index.mjs --minify --target=browser src/index.ts",
     "build": "npm run prepare"
   },
   "devDependencies": {
