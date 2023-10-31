@@ -1,6 +1,5 @@
 use std::sync::Mutex;
 
-use rusty_v8 as v8;
 use v8::{Context, Global, OwnedIsolate};
 
 fn create_origin<'s>(
