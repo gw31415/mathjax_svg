@@ -1,8 +1,9 @@
-use mathjax_svg::convert_to_svg;
+use mathjax_svg::Converter;
 
 fn main() {
+    let mut converter = Converter::new();
     println!(
         "{}",
-        convert_to_svg(r#"\int_{-\infty}^\infty e^{-x^2}\,\mathrm dx"#)
+        converter.convert_to_svg(r#"\int_{-\infty}^\infty e^{-x^2}\,\mathrm dx"#)
     );
 }
