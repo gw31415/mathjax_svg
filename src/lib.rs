@@ -112,17 +112,19 @@ pub fn convert_to_svg(latex: impl AsRef<str>) -> Result<String> {
         if let Some(result) = func.call(scope, obj, &args) {
             Ok(result.to_rust_string_lossy(scope))
         } else {
-            let message = 'msg: {
+            let message = {
                 let key = v8::String::new(scope, "message").unwrap();
                 let Some(exception) = scope.exception() else {
                     return Err(Error::UnknownError);
                 };
                 let exception = exception.to_object(scope).unwrap();
-                let Some(message) = exception.get(scope, key.into()) else {
-                    // If the error object does not contain a `message` member, it will be directly converted to a string.
-                    break 'msg exception.to_rust_string_lossy(scope);
-                };
-                message.to_rust_string_lossy(scope)
+                if let Some(message) = exception.get(scope, key.into()) {
+                    message.to_rust_string_lossy(scope)
+                } else {
+                    // If the error object does not contain a `message` member,
+                    // it will be directly converted to a string.
+                    exception.to_rust_string_lossy(scope)
+                }
             };
             Err(Error::V8ExceptionThrown(message))
         }
