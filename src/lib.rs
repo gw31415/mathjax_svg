@@ -39,8 +39,11 @@ type Result<T> = std::result::Result<T, Error>;
 
 const FUNC_ID: &str = "cqbuwfsowtpq"; // random character string
 
+/// Variables to keep from V8 initialization
+type InitializationResults = (RefCell<OwnedIsolate>, Global<Context>);
+
 /// Initialization: JIT compilation and function object registration
-fn initialize() -> (RefCell<OwnedIsolate>, Global<Context>) {
+fn initialize() -> InitializationResults {
     if !*INITIALIZED.lock().unwrap() {
         let platform = v8::new_default_platform(0, false).make_shared();
         v8::V8::initialize_platform(platform);
@@ -89,37 +92,35 @@ fn initialize() -> (RefCell<OwnedIsolate>, Global<Context>) {
 /// Convert a math string to Svg
 pub fn convert_to_svg(latex: impl AsRef<str>) -> Result<String> {
     thread_local! {
-        pub static ISOLATE_CONTEXT: (RefCell<OwnedIsolate>, Global<Context>) = initialize();
+        pub static ISOLATE_CONTEXT: InitializationResults = initialize();
     };
-    ISOLATE_CONTEXT.with(
-        |(isolate, context): &(RefCell<OwnedIsolate>, Global<Context>)| {
-            let isolate: &mut OwnedIsolate = &mut isolate.borrow_mut();
-            let handle_scope = &mut v8::HandleScope::new(isolate);
-            let context = v8::Local::new(handle_scope, context.clone());
-            let scope = &mut v8::ContextScope::new(handle_scope, context);
-            let scope = &mut v8::TryCatch::new(scope);
+    ISOLATE_CONTEXT.with(|(isolate, context): &InitializationResults| {
+        let isolate: &mut OwnedIsolate = &mut isolate.borrow_mut();
+        let handle_scope = &mut v8::HandleScope::new(isolate);
+        let context = v8::Local::new(handle_scope, context.clone());
+        let scope = &mut v8::ContextScope::new(handle_scope, context);
+        let scope = &mut v8::TryCatch::new(scope);
 
-            let key = v8::String::new(scope, FUNC_ID).unwrap().into();
-            let obj = context.global(scope).get(scope, key).unwrap();
-            let func = v8::Local::<v8::Function>::try_from(obj).unwrap();
-            let args = [v8::String::new(scope, latex.as_ref()).unwrap().into()];
-            if let Some(result) = func.call(scope, obj, &args) {
-                Ok(result.to_rust_string_lossy(scope))
-            } else {
-                let message = 'msg: {
-                    let key = v8::String::new(scope, "message").unwrap();
-                    let Some(exception) = scope.exception() else {
-                        return Err(Error::UnknownError);
-                    };
-                    let exception = exception.to_object(scope).unwrap();
-                    let Some(message) = exception.get(scope, key.into()) else {
-                        // If the error object does not contain a `message` member, it will be directly converted to a string.
-                        break 'msg exception.to_rust_string_lossy(scope);
-                    };
-                    message.to_rust_string_lossy(scope)
+        let key = v8::String::new(scope, FUNC_ID).unwrap().into();
+        let obj = context.global(scope).get(scope, key).unwrap();
+        let func = v8::Local::<v8::Function>::try_from(obj).unwrap();
+        let args = [v8::String::new(scope, latex.as_ref()).unwrap().into()];
+        if let Some(result) = func.call(scope, obj, &args) {
+            Ok(result.to_rust_string_lossy(scope))
+        } else {
+            let message = 'msg: {
+                let key = v8::String::new(scope, "message").unwrap();
+                let Some(exception) = scope.exception() else {
+                    return Err(Error::UnknownError);
                 };
-                Err(Error::V8ExceptionThrown(message))
-            }
-        },
-    )
+                let exception = exception.to_object(scope).unwrap();
+                let Some(message) = exception.get(scope, key.into()) else {
+                    // If the error object does not contain a `message` member, it will be directly converted to a string.
+                    break 'msg exception.to_rust_string_lossy(scope);
+                };
+                message.to_rust_string_lossy(scope)
+            };
+            Err(Error::V8ExceptionThrown(message))
+        }
+    })
 }
