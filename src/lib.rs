@@ -1,4 +1,4 @@
-use std::{cell::RefCell, sync::Mutex};
+use std::{cell::UnsafeCell, sync::Mutex};
 
 use thiserror::Error;
 use v8::{Context, Global, OwnedIsolate};
@@ -40,7 +40,7 @@ type Result<T> = std::result::Result<T, Error>;
 const FUNC_ID: &str = "cqbuwfsowtpq"; // random character string
 
 /// Variables to keep from V8 initialization
-type InitializationResults = (RefCell<OwnedIsolate>, Global<Context>);
+type InitializationResults = (UnsafeCell<OwnedIsolate>, Global<Context>);
 
 /// Initialization: JIT compilation and function object registration
 fn initialize() -> InitializationResults {
@@ -86,7 +86,7 @@ fn initialize() -> InitializationResults {
             context.global(scope).set(scope, key, obj);
         }
     }
-    (RefCell::new(isolate), global_context)
+    (UnsafeCell::new(isolate), global_context)
 }
 
 /// Convert a math string to Svg
@@ -95,7 +95,11 @@ pub fn convert_to_svg(latex: impl AsRef<str>) -> Result<String> {
         pub static ISOLATE_CONTEXT: InitializationResults = initialize();
     };
     ISOLATE_CONTEXT.with(|(isolate, context): &InitializationResults| {
-        let isolate: &mut OwnedIsolate = &mut isolate.borrow_mut();
+        // isolate is thread-local, so you don't have to worry about Sync.
+        // isolate is immediately shadowed here, so there is no need to worry about
+        // another mutable/immutable reference being created later.
+        let isolate: &mut OwnedIsolate = unsafe { isolate.get().as_mut().unwrap_unchecked() };
+
         let handle_scope = &mut v8::HandleScope::new(isolate);
         let context = v8::Local::new(handle_scope, context.clone());
         let scope = &mut v8::ContextScope::new(handle_scope, context);
