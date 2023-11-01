@@ -1,5 +1,6 @@
 use std::{cell::UnsafeCell, sync::Mutex};
 
+use anyhow::Context as _;
 use thiserror::Error;
 use v8::{Context, Global, OwnedIsolate};
 
@@ -31,7 +32,10 @@ pub enum Error {
     V8ExceptionThrown(String),
     /// Unknown error
     #[error("unknown error")]
-    UnknownError,
+    Unreacheable,
+    /// Other error
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
 }
 
 /// local shortcode of Result
@@ -91,6 +95,9 @@ fn initialize() -> InitializationResults {
 
 /// Convert a math string to Svg
 pub fn convert_to_svg(latex: impl AsRef<str>) -> Result<String> {
+    /// Error message when casting None to Result
+    const NONE_ERR_MSG: &str = "None returned during v8 processing";
+
     thread_local! {
         pub static ISOLATE_CONTEXT: InitializationResults = initialize();
     };
@@ -105,19 +112,26 @@ pub fn convert_to_svg(latex: impl AsRef<str>) -> Result<String> {
         let scope = &mut v8::ContextScope::new(handle_scope, context);
         let scope = &mut v8::TryCatch::new(scope);
 
-        let key = v8::String::new(scope, FUNC_ID).unwrap().into();
-        let obj = context.global(scope).get(scope, key).unwrap();
-        let func = v8::Local::<v8::Function>::try_from(obj).unwrap();
-        let args = [v8::String::new(scope, latex.as_ref()).unwrap().into()];
+        let key = v8::String::new(scope, FUNC_ID)
+            .context(NONE_ERR_MSG)?
+            .into();
+        let obj = context
+            .global(scope)
+            .get(scope, key)
+            .context(NONE_ERR_MSG)?;
+        let func = v8::Local::<v8::Function>::try_from(obj).context(NONE_ERR_MSG)?;
+        let args = [v8::String::new(scope, latex.as_ref())
+            .context(NONE_ERR_MSG)?
+            .into()];
         if let Some(result) = func.call(scope, obj, &args) {
             Ok(result.to_rust_string_lossy(scope))
         } else {
             let message = {
-                let key = v8::String::new(scope, "message").unwrap();
+                let key = v8::String::new(scope, "message").context(NONE_ERR_MSG)?;
                 let Some(exception) = scope.exception() else {
-                    return Err(Error::UnknownError);
+                    return Err(Error::Unreacheable);
                 };
-                let exception = exception.to_object(scope).unwrap();
+                let exception = exception.to_object(scope).context(NONE_ERR_MSG)?;
                 if let Some(message) = exception.get(scope, key.into()) {
                     message.to_rust_string_lossy(scope)
                 } else {

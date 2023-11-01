@@ -1,6 +1,6 @@
 [package]
 name = "mathjax_svg"
-version = "3.0.0"
+version = "3.1.0"
 edition = "2021"
 authors = ["gw31415 <git@amas.dev>"]
 license = "Apache-2.0"
@@ -9,5 +9,6 @@ description = "Convert mathematical expressions to SVG using Mathjax"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0.75"
 thiserror = "1.0.50"
 v8 = "0.80.0"
