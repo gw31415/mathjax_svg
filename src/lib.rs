@@ -95,6 +95,15 @@ fn initialize() -> InitializationResults {
 
 /// Convert a math string to Svg
 pub fn convert_to_svg(latex: impl AsRef<str>) -> Result<String> {
+    convert_to_svg_inner(latex, true)
+}
+
+/// Convert a math string to Svg in inline mode
+pub fn convert_to_svg_inline(latex: impl AsRef<str>) -> Result<String> {
+    convert_to_svg_inner(latex, false)
+}
+
+fn convert_to_svg_inner(latex: impl AsRef<str>, display: bool) -> Result<String> {
     /// Error message when casting None to Result
     const NONE_ERR_MSG: &str = "None returned during v8 processing";
 
@@ -119,10 +128,21 @@ pub fn convert_to_svg(latex: impl AsRef<str>) -> Result<String> {
             .global(scope)
             .get(scope, key)
             .context(NONE_ERR_MSG)?;
-        let func = v8::Local::<v8::Function>::try_from(obj).context(NONE_ERR_MSG)?;
-        let args = [v8::String::new(scope, latex.as_ref())
+
+        let config = v8::Object::new(scope);
+        let config_key = v8::String::new(scope, "display")
             .context(NONE_ERR_MSG)?
-            .into()];
+            .into();
+        let config_value = v8::Boolean::new(scope, display).into();
+        config.set(scope, config_key, config_value);
+
+        let func = v8::Local::<v8::Function>::try_from(obj).context(NONE_ERR_MSG)?;
+        let args = [
+            v8::String::new(scope, latex.as_ref())
+                .context(NONE_ERR_MSG)?
+                .into(),
+            config.into(),
+        ];
         if let Some(result) = func.call(scope, obj, &args) {
             Ok(result.to_rust_string_lossy(scope))
         } else {
