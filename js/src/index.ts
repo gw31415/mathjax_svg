@@ -20,7 +20,7 @@ export default function(
 		const node = doc.convert(latex, options);
 
 		const svgString = adaptor.outerHTML(node);
-		const svgTag = svgString.match(/<svg[^>]*>[\s\S]*?<\/svg>/g)![0];
+		const svgTag = svgString.match(/<svg[^>]*>[\s\S]*<\/svg>/g)![0];
 
 		// エラーをチェックする
 		if (svgTag.includes("data-mjx-error")) {
