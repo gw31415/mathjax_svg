@@ -1,6 +1,5 @@
-use std::{cell::UnsafeCell, sync::Mutex};
-
 use anyhow::Context as _;
+use std::{cell::UnsafeCell, sync::Once};
 use thiserror::Error;
 use v8::{Context, Global, OwnedIsolate};
 
@@ -21,8 +20,6 @@ fn module_callback<'s>(
 ) -> Option<v8::Local<'s, v8::Module>> {
     Some(module)
 }
-
-static INITIALIZED: Mutex<bool> = Mutex::new(false);
 
 /// Exceptions related to this crate
 #[derive(Error, Debug)]
@@ -48,12 +45,12 @@ type InitializationResults = (UnsafeCell<OwnedIsolate>, Global<Context>);
 
 /// Initialization: JIT compilation and function object registration
 fn initialize() -> InitializationResults {
-    if !*INITIALIZED.lock().unwrap() {
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
         let platform = v8::new_default_platform(0, false).make_shared();
         v8::V8::initialize_platform(platform);
         v8::V8::initialize();
-        *INITIALIZED.lock().unwrap() = true;
-    }
+    });
 
     let mut isolate = v8::Isolate::new(Default::default());
     let global_context;
@@ -110,6 +107,7 @@ fn convert_to_svg_inner(latex: impl AsRef<str>, display: bool) -> Result<String>
     thread_local! {
         pub static ISOLATE_CONTEXT: InitializationResults = initialize();
     };
+    
     ISOLATE_CONTEXT.with(|(isolate, context): &InitializationResults| {
         // isolate is thread-local, so you don't have to worry about Sync.
         // isolate is immediately shadowed here, so there is no need to worry about
