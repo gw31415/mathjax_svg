@@ -4,13 +4,17 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "prepare": "bun build --outfile=out/index.mjs --minify --target=browser src/index.ts",
-    "build": "npm run prepare"
+    "build": "rollup -c"
   },
   "devDependencies": {
-    "bun": "^1.0.7",
-    "bun-types": "latest",
-    "mathjax-full": "^3.2.2"
+    "@biomejs/biome": "^2.2.4",
+    "@rollup/plugin-commonjs": "^28.0.6",
+    "@rollup/plugin-node-resolve": "^16.0.1",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^12.1.4",
+    "mathjax-full": "^3.2.2",
+    "rollup": "^4.52.2",
+    "tslib": "^2.8.1"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"

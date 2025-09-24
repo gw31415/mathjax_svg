@@ -1,9 +1,16 @@
 {
   "compilerOptions": {
-    "lib": ["ESNext"],
+    "esModuleInterop": true,
+    "lib": [
+      "ESNext"
+    ],
     "module": "esnext",
     "target": "esnext",
     "moduleResolution": "bundler",
+    "declaration": false,
+    "declarationMap": false,
+    "declarationDir": "./out/types",
+    "outDir": "./out",
     "moduleDetection": "force",
     "allowImportingTsExtensions": true,
     "noEmit": true,
@@ -11,12 +18,12 @@
     "strict": true,
     "downlevelIteration": true,
     "skipLibCheck": true,
-    "jsx": "react-jsx",
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
-    "allowJs": true,
-    "types": [
-      "bun-types" // add Bun global
-    ]
-  }
+    "allowJs": true
+  },
+  "exclude": [
+    "out/*",
+    "rollup.config.ts"
+  ]
 }
